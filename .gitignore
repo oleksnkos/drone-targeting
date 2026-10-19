@@ -1,0 +1,16 @@
+# Compiled executables
+drop_calc
+*.o
+*.out
+
+# Generated results
+output/
+
+# Temporary files
+*.tmp
+*.log
+
+# Editor files
+.vscode/
+*.swp
+*~

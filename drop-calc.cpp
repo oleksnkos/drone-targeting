@@ -64,15 +64,44 @@ int getValue(const Target& t){
     }
 }
 
-int main() {
+int main(int argc, char* argv[]) {
+
+    std::string input_file;
+    std::string output_file;
+
+    for (int i = 1; i < argc; i++) {
+        std::string arg = argv[i];
+
+        if (arg == "--input-file" && i + 1 < argc) {
+            input_file = argv[++i];
+        }
+        else if (arg == "--output-file" && i + 1 < argc) {
+            output_file = argv[++i];
+        }
+        else {
+            std::cerr << "Invalid argument: " << arg << '\n';
+            return 1;
+        }
+    }
+
+    if (input_file.empty() || output_file.empty()) {
+        std::cerr << "Usage: ./drop_calc --input-file <path> --output-file <path>\n";
+        return 1;
+    }
 
     Ammo Frag = {60, 25, 35, "Frag"};
     Ammo HE = {35, 55, 20, "HE"};
     Ammo HEAT = {15, 130, 45, "HEAT"};
     std::vector<Ammo> ammo = {Frag, HE, HEAT};
     
-    std::ifstream in("scenario.txt"); //open for reading
-    double altitude_m, wind_x, wind_y, numOfTargets;
+    std::ifstream in(input_file);
+    if (!in) {
+        std::cerr << "Cannot open input file: " << input_file << '\n';
+        return 1;
+    }
+
+    double altitude_m, wind_x, wind_y;
+    int numOfTargets;
     in >> altitude_m >> wind_x >> wind_y >> numOfTargets; //reading from the file
 
     std::vector<Target> targets(numOfTargets);
@@ -127,7 +156,12 @@ int main() {
     double price = ammo[bestChoice[0]].price;
     double value_sum = best + price;
 
-    std::ofstream out("result.txt"); //open for writing
+    std::ofstream out(output_file);
+    if (!out) {
+        std::cerr << "Cannot open output file: " << output_file << '\n';
+        return 1;
+    }
+
     out << std::fixed << std::setprecision(2) << impact_x << ' ' << std::fixed << std::setprecision(2) << impact_y << '\n'
         << std::fixed << std::setprecision(2) << release_x << ' ' << std::fixed << std::setprecision(2) << release_y << '\n'
         << std::fixed << std::setprecision(2) << ammo[bestChoice[0]].type << '\n'
