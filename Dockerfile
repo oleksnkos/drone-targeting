@@ -8,15 +8,16 @@ RUN apt-get update && apt-get install -y g++ && rm -rf /var/lib/apt/lists/*
 WORKDIR /drone-targeting
 
 # copy files
-COPY drop-calc.cpp .
+COPY include/ ./include/
+COPY src/ ./src/
 COPY run-all.sh .
 COPY input/ ./input/
 
 # compile
-RUN g++ -std=c++17 -Wall -Wextra drop-calc.cpp -o drop-calc
+RUN g++ -std=c++17 -Wall -Wextra -Iinclude src/*.cpp -o drop-calc
 
 # make run-all.sh executable
 RUN chmod +x run-all.sh
 
-# exectues when the container starts
+# executes when the container starts
 CMD ["./run-all.sh"]

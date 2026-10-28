@@ -1,5 +1,5 @@
 # Compiled executables
-drop_calc
+drop-calc
 *.o
 *.out
 

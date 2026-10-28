@@ -6,28 +6,47 @@ This project implements the core calculation module of a drone-based payload rel
 
 The program processes multiple targets, considers available ammunition types and their costs, and determines a suitable ammunition–target combination based on the criteria defined in the assignment.
 
-The project supports command-line arguments for specifying input and output files, automated batch processing using Bash, and containerized execution using Docker.
+The release point is computed by a selectable trajectory model (`hover` or `forward`) hidden behind a common abstract interface. New models can be added without changing the rest of the program.
+
+The project supports command-line arguments for specifying input and output files and the trajectory model, automated batch processing using Bash, and containerized execution using Docker.
 
 ## Project Structure
 
 ```text
 drone-targeting/
 ├── Dockerfile
-├── drop-calc.cpp
 ├── run-all.sh
+├── include/
+│   ├── Vec2.h            # 2D vector type with overloaded operators
+│   ├── Trajectory.h      # ITrajectorySource interface + Hover / ForwardThrow models
+│   ├── Mission.h         # Target, Ammo, Mission (scenario loading)
+│   └── StrikePlanner.h   # ammo + impact point selection
+├── src/
+│   ├── Vec2.cpp
+│   ├── Trajectory.cpp
+│   ├── Mission.cpp
+│   ├── StrikePlanner.cpp
+│   └── main.cpp          # argument parsing, model selection, output
 ├── input/
-│   ├── mission-a.txt
-│   ├── mission-b.txt
-│   └── mission-c.txt
+│   └── ...
 ├── output/
-│   ├── mission-a-result.txt
-│   ├── mission-b-result.txt
-│   └── mission-c-result.txt
+│   └── ...
 ├── .gitignore
 └── README.md
 ```
 
-The `output/` directory and its contents are generated during execution and are excluded from Git.
+Contents of `output/` are generated during execution and are excluded from Git.
+
+## Trajectory Models
+
+Fall time from altitude: `t = sqrt(2 · altitude / g)`, `g = 9.81 m/s²`.
+
+| Model | Description | Formula |
+|---|---|---|
+| `hover` (default) | Drone hovers; the payload is drifted only by the wind | `release = impact − wind · t` |
+| `forward` | Drone drops while moving at cruise velocity `v_drone = (12.0, 0.0)` m/s; the payload inherits the drone's velocity | `release = impact − (wind + v_drone) · t` |
+
+The model only affects the release point (second output line).
 
 ## Input Format
 
@@ -38,7 +57,9 @@ Each input file contains:
 - Release altitude in meters.
 - Wind velocity components along the X and Y axes.
 - Number of targets.
-- Target coordinates, health points (HP), and type.
+- Target coordinates, health points (HP), and type (`PERSONNEL`, `LOGISTICS`, `APC`, `TANK`, `RADAR`).
+
+Invalid input (altitude ≤ 0, target count outside 1–64, HP < 1, unknown target type) causes the program to terminate with a nonzero exit code.
 
 ### Example — `input/mission-a.txt`
 
@@ -59,15 +80,24 @@ The program writes calculation results to the file specified using the `--output
 The output contains:
 
 1. Selected impact coordinates (X, Y).
-2. Calculated release coordinates (X, Y), accounting for wind displacement.
+2. Calculated release coordinates (X, Y), according to the selected trajectory model.
 3. Selected ammunition type.
 4. Number of destroyed targets, total target value, ammunition cost, and net value.
 
-### Example — `output/mission-a-result.txt`
+### Example — `hover` (default)
 
 ```text
 300.00 400.00
 275.27 400.00
+Frag
+4 50 35 15
+```
+
+### Example — `forward`, same input
+
+```text
+300.00 400.00
+215.91 400.00
 Frag
 4 50 35 15
 ```
@@ -79,24 +109,26 @@ Frag
 Compile the program using a C++17-compatible compiler:
 
 ```bash
-g++ -std=c++17 -Wall -Wextra drop-calc.cpp -o drop_calc
+g++ -std=c++17 -Wall -Wextra -Iinclude src/*.cpp -o drop-calc
 ```
 
 Run the executable with the required command-line arguments:
 
 ```bash
-./drop_calc --input-file input/mission-a.txt --output-file output/mission-a-result.txt
+./drop-calc --input-file input/mission-a.txt --output-file output/mission-a-result.txt
 ```
 
-The order of the arguments is interchangeable.
+Select the trajectory model with `--trajectory`:
 
-Both `--input-file` and `--output-file` are required. Missing or invalid arguments cause the program to terminate with a nonzero exit code.
+```bash
+./drop-calc --input-file input/mission-a.txt --output-file output/mission-a-forward.txt --trajectory forward
+```
 
-The output directory must exist before running the executable.
+The order of the arguments is interchangeable. Missing, unknown, or invalid arguments cause the program to terminate with a nonzero exit code. The output directory must exist before running the executable.
 
 ### 2. Batch Processing with Bash
 
-The `run-all.sh` script automatically processes all `.txt` files in the `input/` directory.
+The `run-all.sh` script automatically processes all `.txt` files in the `input/` directory with both trajectory models.
 
 Run:
 
@@ -104,12 +136,11 @@ Run:
 bash run-all.sh
 ```
 
-For every input file, the script generates a corresponding output file:
+For every input file, the script generates the corresponding output files:
 
 ```text
-input/mission-a.txt → output/mission-a-result.txt
-input/mission-b.txt → output/mission-b-result.txt
-input/mission-c.txt → output/mission-c-result.txt
+input/mission-a.txt → output/mission-a-result.txt          (hover)
+                    → output/mission-a-forward-result.txt  (forward)
 ```
 
 The script creates the `output/` directory if necessary.
@@ -118,7 +149,7 @@ The script creates the `output/` directory if necessary.
 
 The project includes a Dockerfile based on `debian:12-slim`.
 
-The Docker image installs the required C++ compiler, copies the source code and input files, compiles the program, and executes `run-all.sh` when the container starts.
+The Docker image installs the required C++ compiler, copies the headers, source files and input files, compiles the program, and executes `run-all.sh` when the container starts.
 
 **Build the Docker image:**
 
@@ -147,10 +178,3 @@ The `:Z` suffix supports SELinux-enabled systems such as Fedora. On systems with
 ```bash
 ls output/
 ```
-
-## Project Scope
-
-This implementation focuses on the computational core, command-line file handling, automated batch processing, and containerized execution.
-
-Network integration, operator controls, and other components of a complete system remain outside the scope of this assignment.
-
